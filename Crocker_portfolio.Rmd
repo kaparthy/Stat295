@@ -1,0 +1,1156 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+  word_document: default
+---
+### Assignment 1 Chapter 2: 8, 9
+
+loading required libraries and setting the working directory:
+```{r, message=FALSE}
+library(tidyverse)
+library(gpairs) 
+library(dplyr)
+library(car)
+
+
+```
+
+
+Question 8
+
+A. Use the read.csv() function to read the data into R. Call the
+loaded data college. Make sure that you have the directory set
+to the correct location for the data.
+```{r}
+#The question asks us to use the read.csv function I include the data function for reproducibility
+library(ISLR)
+library(gpairs)
+college=read.csv("~/Documents/Rscripts /Stat 295/Chapter 2/College.csv")
+
+
+```
+B. Look at the data using the fix() function. You should notice that the first column is just the name of each university. We don’t really want R to treat this as data. However, it may be handy to have these names for later fix() does not display in R markdowns, so I will opt to use head() - so that the output will be visible in this notebook.  
+
+the following code removes sets the row names of the dataframe college to the values contained in the first column and then removes that column from the dataframe.
+```{r, error= TRUE}
+rownames(college)=college [,'X']
+head(college)
+college =college [,-1]
+head(college, 2)
+```
+
+C. Part C is really another question in itself, with 5 different parts, clearly labeled with roman numerals - since the book already exhausted numbers.
+
+i) Use the summary() function to produce a numerical summary of the variables in the data set.
+```{r}
+summary(college)
+```
+ii. Use the pairs() function to produce a scatterplot matrix of the first ten columns or variables of the data. 
+
+```{r}
+pairs(college[,1:10])
+```
+
+I opt to use an output using the gpairs() function from the gpairs package because pairs() is ugly and does not include histograms for the variables in the dataframe.
+```{r, fig.height = 7, fig.width = 10, fig.align = "center"}
+suppressMessages(gpairs(college[,1:10]))
+```
+iii. Use the plot() function to produce side-by-side boxplots of Outstate versus Private.
+
+```{r}
+boxplot(Outstate~Private, data=college, ylab="Outstate", xlab="Private")
+title("Outstate vs Private Boxplot")
+```
+
+
+iv. Create a new qualitative variable, called Elite, by binning the Top10perc variable. We are going to divide universities into two groups based on whether or not the proportion of students coming from the top 10 % of their high schoolclasses exceeds 50 %.
+```{r}
+#Creating a vector with equal length to the columns of of college with the inital value of "no"
+Elite=rep("No",nrow(college )) 
+#indexing rows of the college dataframe where the Top10perc column is greater than 50 and changing that row value to "Yes"
+Elite[college$Top10perc >50]="Yes"
+#Converting the vector from the list class to the factor class which handles categorical variables
+Elite=as.factor(Elite)
+#combining the college dataframe and the Elite vector
+college=data.frame(college , Elite)
+#creating a qucik bar plot using the ggplot2 and plotly packages to get a quick idea of what the Elite vector looks like.
+```
+Use the summary() function to see how many elite universities there are.
+```{r}
+summary(college$Elite)
+```
+A quick interative bar graph that does a better job of illustrating the relationship.
+```{r}
+qplot(college$Elite)
+```
+Now use the plot() function to produce side-by-side boxplots of Outstate versus Elite.
+```{r}
+boxplot(Outstate~Elite, data = college, xlab="Outstate", ylab="Elite")
+title("Outstate vs. Elite boxplot")
+```
+Use the hist() function to produce some histograms with differing numbers of bins for a few of the quantitative variables.You may find the command par(mfrow=c(2,2)) useful:it will divide the print window into four regions so that four plots can be made simultaneously. Modifying the arguments to this function will divide the screen in other ways
+```{r, fig.height = 7, fig.width = 10, fig.align = "center"}
+par(mfrow= c(3,3))
+hist(college$Apps)
+hist(college$Accept)
+hist(college$Enroll)
+hist(college$Top10perc)
+hist(college$Top25perc)
+hist(college$F.Undergrad)
+hist(college$Outstate)
+hist(college$Room.Board)
+hist(college$Books)
+```
+vi. Continue exploring the data, and provide a brief summary of what you discover.
+
+Defining a function to to plot log denisty estimates of distributions
+```{r}
+PLOT=function(x){
+  h=x
+ggplot(college, aes(log(h), fill = Private))+
+  geom_density()+
+  ggtitle(paste(names(h)))
+  
+}
+```
+
+```{r, message= FALSE}
+PLOT(college$Accept)
+```
+
+
+```{r}
+PLOT(college$Apps)
+```
+
+
+```{r}
+PLOT(college$Top10perc)
+```
+
+
+
+```{r}
+PLOT(college$Top25perc)
+```
+
+
+
+It Appears that while Public Schools have more applications and accept more of them, private schools recieve more students that were at the top of their highschool class - shocker.
+
+Question 9
+This exercise involves the Auto data set studied in the lab. Make sure that the missing values have been removed from the data.
+
+```{r}
+library(dplyr)
+#Auto=read.csv("/Users/studentnopassword/Documents/R scripts /Stat 295/Chapter 2/Auto.csv")
+data(Auto)
+```
+
+
+
+```{r}
+Auto=Auto %>% 
+  filter(horsepower != "?")
+```
+looking at the data it is clear there are a few problems.  $horsepower which should be numeric is a factor and origin which is an integer should be a factor.
+```{r}
+head(Auto)
+#tail(Auto)
+suppressWarnings(str(Auto))
+```
+
+(a) Which of the predictors are quantitative, and which are qualitative?
+
+```{r}
+Auto$horsepower=as.numeric(Auto$horsepower)
+Auto$origin=as.factor(Auto$origin)
+lapply(Auto, is.numeric)
+```
+(b) What is the range of each quantitative predictor? You can answer this using the range() function.
+```{r}
+lapply(Auto[,1:7], range)
+```
+ 
+(c) What is the mean and standard deviation of each quantitative predictor?
+```{r}
+suppressWarnings(lapply(Auto[,1:7], FUN=mean))
+```
+```{r}
+suppressWarnings(lapply(Auto[,1:7], FUN=sd))
+```
+(d) Now remove the 10th through 85th observations. What is the range, mean, and standard deviation of each predictor in the subset of the data that remains?
+```{r}
+Auto2=Auto[-10:-85,]
+```
+(e) Using the full data set, investigate the predictors graphically, using scatterplots or other tools of your choice. Create some plots highlighting the relationships among the predictors. Comment on your findings
+
+
+It seems that most variables are negativley correleated with with the $mpg variable.  There may be some issues with multicollinearity here.
+```{r, fig.height = 12, fig.width = 12, fig.align = "center"}
+pairs(Auto)
+
+title("Auto Scatter Matrix")
+```
+
+
+
+(f) Suppose that we wish to predict gas mileage (mpg) on the basis of the other variables. Do your plots suggest that any of the other variables might be useful in predicting mpg? Justify your answer.
+
+According to the p-values $cylinders is not a signifigant predictor of $mpg.  The variable $horsepower is nearing signifigance.  Looking at the scatter plot it seems that there are two clusters of points in the $mpg v $horsepower scatterplot. This is likely why.
+
+```{r}
+AutoLm=Auto
+AutoLm$name= NULL
+model1=lm(mpg~., data=AutoLm) 
+summary(model1)
+```
+
+####I don't see any problems in the residuals.
+
+```{r}
+plot(model1$residuals)
+title("Residuals from Auto Linear Regression Model")
+```
+
+
+
+looking at the VIF it doesn't look like there is too much collinearity present in the model
+```{r}
+car::vif(model1)
+```
+
+I'll now create a linear model and evaluate the test error using a validation set, after first removing $cylinders and $horsepower.
+
+I first create a dataframe without the predictors that the model deemed insignifigant. I then randomly shuffle the rows with the sample() function.  
+```{r}
+CrossVD=select(AutoLm, -cylinders, -horsepower)
+set.seed(42)
+rows<- sample(nrow(CrossVD))
+CrossVD<- CrossVD[rows,]
+```
+I then create training and testing datasets to access out of sample error for a simpler model
+```{r}
+split <- round(nrow(CrossVD) * .80)
+train <- CrossVD[1:split, ]
+test <- CrossVD[(split + 1):nrow(CrossVD), ]
+```
+I then fit the model and predict on the test dataset
+```{r}
+model2<-lm(mpg ~ ., train)
+prediction<-predict(model2, test)
+```
+I then calculate the RMSE and use this as to asses the model.
+```{r}
+error<- prediction - test[["mpg"]]
+sqrt(mean(error^2))
+```
+I then use the dataset with the insignifigent predictors still included and use the same method to asses the model.
+```{r}
+set.seed(42)
+rows<- sample(nrow(AutoLm))
+CrossVD<- AutoLm[rows,]
+split <- round(nrow(AutoLm) * .80)
+train3 <- AutoLm[1:split, ]
+test3 <- AutoLm[(split + 1):nrow(AutoLm), ]
+model3<-lm(mpg ~ ., train3)
+prediction3<-predict(model3, test3)
+error<- prediction3 - test3[["mpg"]]
+sqrt(mean(error^2))
+```
+The RMSE for the for the model without $cylinders and $horsepower is lower.
+
+=====================================================================================
+## Assignment 2 Chapter 3-1: 8, 9
+```{r}
+library(car)
+library(ggplot2)
+```
+
+14. This problem focuses on the collinearity problem:
+(a) Perform the following commands in R:
+```{r}
+set.seed(1)
+x1 = runif(100)
+x2 = 0.5*x1+rnorm(100)/10
+y = 2+2*x1+0.3*x2+rnorm(100)
+```
+The last line corresponds to creating a linear model in which y is a function of x1 and x2. Write out the form of the linear model. What are the regression coefficients?
+```{r}
+linreg=lm(y~x1+x2)
+linreg$coefficients
+```
+(b) What is the correlation between x1 and x2? Create a scatterplot displaying the relationship between the variables.
+```{r}
+cor(x1,x2)
+qplot(x1,x2)+
+  theme_classic()+
+  ggtitle("Scatter Plot of X vs Y in Our Simulated Dataset")
+```
+c)Using this data, fit a least squares regression to predict y using x1 and x2. Describe the results obtained. What are βˆ0, βˆ1, and βˆ2? How do these relate to the true β0, β1, and β2? Can you reject the null hypothesis H0 : β1 = 0? How about the null hypothesis H0 : β2 = 0?
+```{r}
+summary(linreg)
+```
+for b^0 a pvalue of nearly zero tells us that that we can reject the hypotheis that mu is zero.  b^0 tells us that when x1 and x2 are zero the mean of y is 2.1305. B^1 tells us that holding all other variables constant a one unit increase in x1 results in a 1.4396 unit increase in y.  The P-value of 0.0487 tells us that we can reject the null hypothesis but considering the p-value is very close to 0.05 I would still question this signifigance.  B^2 should not be interpretted given the large p-value, so I would fail to reject the null hypothesis.  
+
+(d) Now fit a least squares regression to predict y using only x1. Comment on your results. Can you reject the null hypothesis H0 : β1 = 0?
+```{r}
+linregX1=lm(y~x1)
+summary(linregX1)
+```
+Given the p-value of nearly zero I can reject the null hypothesis, but, the regression line doesn't explain a lot of variation in y.
+
+(e) Now fit a least squares regression to predict y using only x2. Comment on your results. Can you reject the null hypothesis H0 : β1 = 0?
+```{r}
+linregX2=lm(y~x2)
+summary(linregX2)
+```
+Given the p-value of nearly zero I can reject the null hypothesis, this regression line explains even less variation in y than a model with x1.
+
+(f) Do the results obtained in (c)–(e) contradict each other? Explain your answer.
+
+Yes, the x2 value is signifigant alone, but not with x2 in the model.
+
+
+(g) Now suppose we obtain one additional observation, which was unfortunately mismeasured.
+```{r}
+x1=c(x1)
+```
+(h) For the model predicting y with x1 & x2, compute the variance inflation factors and state an interpretation of these values.
+```{r}
+vif(linreg)
+```
+Given that the average vif is over 3, I would conclude that there is high multicollinearity in the model.
+
+```{r}
+par(mfrow = c(2,2))
+plot(linreg)
+```
+(i)For the model predicting y with x1 & x2, how many obs may be outliers in the "x-direction"? Which observations do these correspond to? Identify these observations in the column space of the design matrix (the x1 vs. x2 plane) and describe their location.
+```{r}
+leverage = hatvalues(linreg)
+#cuttoff=2*mean(leverage)
+plot(x1 , x2)+
+  points(x1[leverage > (2*mean(leverage))],x2[leverage > (2*mean(leverage))], col = "red")+
+  title("Diagnostic Model Plot")
+```
+There appear to be 6 points higher than twice the average leverage these are outliers in the x direction.
+```{r}
+str(linreg$fitted.values)
+linreg$fitted.values
+```
+```{r}
+x1= c(x1, 0.4)
+x2= c(x2, 8)
+y= c(y, 4)
+
+test_model = lm(y~x1)
+c=cooks.distance(test_model)
+c[101]
+lev = hatvalues(test_model)
+lev[101]
+```
+```{r}
+#predict(test_model,data.frame(x1=0.4, x2=0.7))
+```
+
+=====================================================================================
+
+## Assignment 3 Chapter 3-2: 14 + 
+```{r, warnings=FALSE}
+library(dplyr)
+library(ISLR)
+library(gpairs)
+library(pheatmap)
+library(car)
+
+setwd("~/Documents/Rscripts /Stat 295/Chapter 3")
+```
+I include the as.data.frame() command for reporducibility.  On my machine when I load the data in from the package it loads as a object of the promise class,  R's native class for handling lazy evaluation.  When I run a command on the Auto object it does read into memory but to ensure reproducibility I will include a command coercing the object to a dataframe.
+```{r}
+data(Auto)
+Auto=as.data.frame(Auto)
+```
+I examine the the class of each column using the str() command Auto$origin was read in as the numeric class, I don't want that.  So I encode this variable as a factor class becasue this will allow it to be treated as numeric level which will be treated as a dummy variable by the lm() fucntion.
+```{r}
+str(Auto)
+Auto$origin=as.factor(Auto$origin)
+```
+8. This question involves the use of simple linear regression on the Auto data set
+a) Use the lm() function to perform a simple linear regression withmpg as the response and horsepower as the predictor. Use thesummary() function to print the results. Comment on the output.For example:
+i. Is there a relationship between the predictor and the response?
+ii. How strong is the relationship between the predictor and
+the response?
+iii. Is the relationship between the predictor and the response
+positive or negative?
+iv. What is the predicted mpg associated with a horsepower of
+98? What are the associated 95 % confidence and prediction
+intervals?
+
+```{r}
+Lmodel= lm(mpg~horsepower, data = Auto)
+summary(Lmodel)
+```
+Based on the p-value Horsepower is a signifigant predictor of MPG. For 1 unit increase in Horsepower the mean decrease in MPG is -0.157 MPG.  This estimate of MPG is off by 4.906 mpg on average, which is a rather large standard error given the range of the values. 
+
+```{r}
+range(Auto$mpg)
+```
+
+
+```{r}
+predict (Lmodel ,data.frame(horsepower = 98),
+interval ="prediction")
+```
+This model certainly needs some improvment.  predicting a value and seeing the confidence interval really puts this large standard error in context.  
+
+(b) Plot the response and the predictor. Use the abline() function to display the least squares regression line.
+```{r}
+plot(mpg~horsepower, data = Auto)
+abline(Lmodel)
+title("MPG vs Horsepwer from the Auto dataset")
+```
+
+
+
+(c) Use the plot() function to produce diagnostic plots of the least squares regression fit. Comment on any problems you see with the fit
+
+```{r, fig.height=6, fig.width=6}
+par(mfrow = c(2,2))
+plot(Lmodel)
+```
+based on these visualizations there seems to be some problems with this model.  There seems to be patterns in the residuals and also many points have high leverage.  I'm going to conclude that this model is not a good fit.
+
+Question 9. This question involves the use of multiple linear regression on the Auto data set.
+
+(a) Produce a scatterplot matrix which includes all of the variables in the data set.
+```{r, fig.height= 8, fig.width=8}
+pairs(Auto)
+```
+
+(b)Compute the matrix of correlations between the variables using the function cor(). You will need to exclude the name variable, cor() which is qualitative.
+
+I opt to drop origin for this also becasue this variable appears to be a dummy variable.
+```{r}
+quant=Auto[,1:7]
+
+h=cor(quant) 
+pheatmap(h)
+print(h)
+```
+(c) Use the lm() function to perform a multiple linear regressionwith mpg as the response and all other variables except name asthe predictors. Use the summary() function to print the results.Comment on the output. For instance:
+i. Is there a relationship between the predictors and the response?
+ii. Which predictors appear to have a statistically significant relationship to the response?
+iii. What does the coefficient for the year variable suggest?
+```{r}
+forlm=select(Auto, -name)
+MLmodel=lm(mpg~., data=forlm)
+summary(MLmodel)
+```
+All predictors except for cylinders, horsepower, acceleration were statistically signifigant predictors of MPG. The coefficent for year suggests that for 1 unit increase in year holding all other variables constant, there is a decrease of 7.770e-01 MPG 
+(d) Use the plot() function to produce diagnostic plots of the linear regression fit. Comment on any problems you see with the fit. Do the residual plots suggest any unusually large outliers? Does the leverage plot identify any observations with unusually high leverage?
+```{r}
+par(mfrow = c(2,2))
+plot(MLmodel)
+```
+There seems to be some high leverage points that may be messing up the fit of the model.  This is evident from the residuals vs leverage plot and Normal Q-Q plot
+(e) Use the * and : symbols to fit linear regression models withinteraction effects. Do any interactions appear to be statisticallysignificant?
+(f) Try a few different transformations of the variables, such aslog(X), √X, X2. Comment on your findings.
+
+For these two questions I fit various models in the console rather than inserting an obscene amount into this notebook.  I will report some intersting findings related to these two questiosns and propose a final model for predicting MPG in the Auto dataset.
+
+I first start by noting some interesting interactions:
+
+```{r}
+one=lm(mpg~cylinders + displacement+ horsepower+weight*acceleration+ year+ origin, data= Auto)
+two=lm(mpg~cylinders:displacement:horsepower:weight+ acceleration+ year+ origin, data= Auto)
+summary(one)
+```
+In model one I noticed a signifigant interaction between weight and acceleration.  Weight has the highest correlation with MPG and weight and acceleration are not highly correlated. These two variables may make an accurate and interpretable model.
+```{r}
+summary(two)
+vif(two)
+```
+judging by R-squared, fitting an interaction between all of the correlated variables did not produce a very good model.  While the interaction is signifigant the model does not perform well.  There does not seem to be any problems with multicollinearity when checking the VIF.
+
+I will now show one of the transformations I performed, a log transformation of all variables with the exception of year and origin.  I did not think it was appropriate to transform these because origin is a factor and year loses a lot of it's interpretation if log transformed.
+```{r}
+logTrans=log(Auto[,1:6])
+logTrans=cbind(logTrans, Auto$year)
+logTrans=cbind(logTrans, Auto$origin)
+logmodel=lm(mpg~., data=logTrans)
+summary(logmodel)
+vif(logmodel)
+```
+logmodel performs very well, much better than model two and slightly better than model one. I had previously noted the signifigant interaction between acceleration and weight.  Creating a model with log transformed variables and this interaction would likely peform well.  
+ 
+```{r}
+
+finalLM=lm(mpg~weight*acceleration+Auto$year+Auto$origin, data=logTrans)
+finalLM2=lm(mpg~weight*acceleration+year+ origin, data=Auto)
+summary(finalLM)
+summary(finalLM2)
+```
+
+This final model performs quite well and is quite interpretable.
+I would like to talk to Dr. Single a bit more about these outputs and interpretting what is going on.
+
+=====================================================================================
+## Assignment 4 Chapter   4: 10 (skip part f, I acutally did this part)
+10. This question should be answered using the Weekly data set, which
+is part of the ISLR package. This data is similar in nature to the
+Smarket data from this chapter’s lab, except that it contains 1, 089
+weekly returns for 21 years, from the beginning of 1990 to the end of
+2010.
+
+(b) Use the full data set to perform a logistic regression with
+Direction as the response and the five lag variables plus Volume
+as predictors. Use the summary function to print the results. Do
+any of the predictors appear to be statistically significant? If so,
+which ones?
+(c) Compute the confusion matrix and overall fraction of correct
+predictions. Explain what the confusion matrix is telling you
+about the types of mistakes made by logistic regression.
+(d) Now fit the logistic regression model using a training data period
+from 1990 to 2008, with Lag2 as the only predictor. Compute the
+confusion matrix and the overall fraction of correct predictions
+for the held out data (that is, the data from 2009 and 2010).
+(e) Repeat (d) using LDA.
+(f) Repeat (d) using QDA.
+(g) Repeat (d) using KNN with K = 1.
+(h) Which of these methods appears to provide the best results on
+this data?
+(i) Experiment with different combinations of predictors, including
+possible transformations and interactions, for each of the
+methods. Report the variables, method, and associated confusion
+matrix that appears to provide the best results on the held
+out data. Note that you should also experiment with values for
+K in the KNN classifier.
+
+```{r}
+library(ISLR)
+library(GGally)
+library(caret)
+library(ggplot2)
+library(e1071)
+data(Weekly)
+```
+(a) Produce some numerical and graphical summaries of the Weekly
+data. Do there appear to be any patterns?
+```{r, fig.height= 10, fig.width= 10,message = FALSE}
+suppressMessages(ggpairs(Weekly, aes( color = "salmon")))
+```
+There seems to be to be little correlation in the predictors.  Volume and Year appear to have an exponential relationship, this would be expected as a company continues throughout time, assuming they are doing well volume traded should increase. Stock Direction is highly dependent on past prices.  Before running any models I will hypothesize that the knn algorithm will work best for classification in this dataset.
+```{r}
+Weekly2 = Weekly[,c(-1,-8)]
+logit = glm(Direction~., data = Weekly2, family = "binomial")
+summary(logit)
+GlmProbs = predict(logit, type = "response")
+GlmPreds = rep("Down", 1089)
+GlmPreds[GlmProbs > .5] = "Up"
+table(GlmPreds, Weekly$Direction)
+```
+```{r}
+(557+54)/1089
+```
+```{r}
+train = which(Weekly$Year >= 1990 & Weekly$Year <= 2008)
+test = which(Weekly$Year > 2008)
+#train = Weekly$Year[Weekly$Year >= 1990 & Weekly$Year <= 2008]
+train_data = Weekly[train,]
+test_data = Weekly[test,]
+logit2 = glm(Direction~Lag2, data = train_data, family = "binomial")
+summary(logit2)
+GlmProbs2 = predict(logit2, test_data, type = "response")
+GlmPreds2 = rep("Down", length(test_data$Today))
+GlmPreds2[GlmProbs2 > .5] = "Up"
+table(GlmPreds2, test_data$Direction)
+mean(GlmPreds2 == test_data$Direction)
+```
+```{r}
+library(MASS)
+train = which(Weekly$Year >= 1990 & Weekly$Year <= 2008)
+test = which(Weekly$Year > 2008)
+#train = Weekly$Year[Weekly$Year >= 1990 & Weekly$Year <= 2008]
+train_data = Weekly[train,]
+test_data = Weekly[test,]
+lDa = lda(Direction~Lag2, data = train_data)
+lDa
+GlmProbs_predict = predict(lDa, test_data, type = "probaility")
+glmProbs2 = as.data.frame(GlmProbs_predict$posterior)
+GlmPreds2 = rep("Down", length(test_data$Today))
+GlmPreds2[glmProbs2$Up > .5] = "Up"
+table(GlmPreds2, test_data$Direction)
+mean(GlmPreds2 == test_data$Direction)
+```
+```{r}
+library(MASS)
+train = which(Weekly$Year >= 1990 & Weekly$Year <= 2008)
+test = which(Weekly$Year > 2008)
+#train = Weekly$Year[Weekly$Year >= 1990 & Weekly$Year <= 2008]
+train_data = Weekly[train,]
+test_data = Weekly[test,]
+lDa = lda(Direction~Lag2, data = train_data, family = "binomial")
+lDa
+GlmProbs_predict = predict(lDa, test_data, type = "probaility")
+glmProbs2 = as.data.frame(GlmProbs_predict$posterior)
+GlmPreds2 = rep("Down", length(test_data$Today))
+GlmPreds2[glmProbs2$Up > .5] = "Up"
+table(GlmPreds2, test_data$Direction)
+mean(GlmPreds2 == test_data$Direction)
+```
+
+```{r}
+set.seed(300)
+indxTrain = createDataPartition(y = Weekly$Direction,p = 0.8,list = FALSE)
+training = Weekly[indxTrain,]
+testing = Weekly[-indxTrain,]
+prop.table(table(training$Direction)) * 100
+```
+changing the random seed a couple time shows me that the selection of k is unstable but accuracy stays around 90% which is much better than the other models presented.  The model most frequently misclassifies down as up.  This is likely becaasue of the unbalanced sample.
+```{r}
+set.seed(300)
+k=data.frame(k = c(1:50))
+ctrl <- trainControl(method="cv", classProbs=TRUE, summaryFunction = twoClassSummary)
+knnFit <- train(Direction ~ ., data = training, method = "knn", trControl = ctrl, preProcess = c("center","scale"), tuneGrid = k , metric = "ROC")
+
+  
+knnplot = knnFit$results
+knnplot
+knnplot %>% ggplot(aes(k, ROC))+
+  geom_line()+
+  geom_point()
+
+confusionMatrix(knnFit)
+
+```
+optimal k = 35
+```{r}
+knnFit
+```
+
+```{r}
+confusionMatrix(knnFit)
+```
+
+```{r}
+lDa = lda(Direction~Lag2+Lag3+Lag4, data = train_data)
+lDa
+LDa2 = lda(Direction~Lag2+Lag5, data = train_data)
+lDa3 = lda(Direction~Lag3+Volume, data = train_data)
+glm2 = glm(Direction~Lag2 + Volume, data = train_data, family = binomial)
+```
+
+```{r}
+ldapredict=function(model){
+GlmProbs_predict = predict(model, test_data, type = "probaility")
+glmProbs2 = as.data.frame(GlmProbs_predict$posterior)
+GlmPreds2 = rep("Down", length(test_data$Today))
+GlmPreds2[glmProbs2$Up > .5] = "Up"
+table(GlmPreds2, test_data$Direction)
+mean(GlmPreds2 == test_data$Direction)}
+```
+Not a very good test error
+```{r}
+ldapredict(lDa)
+```
+even worse
+```{r}
+ldapredict(LDa2)
+```
+Nope
+```{r}
+ldapredict(lDa3)
+```
+The knn neighbors classifier works best because stock data is extremly dependent on the previous days price.  Because knn looks at only past points, it is able to predict best.  This could have been guessed without fitting any models.
+
+=====================================================================================
+## Assignment 5 Chapter 5-1: 5
+
+In Chapter 4, we used logistic regression to predict the probability of
+default using income and balance on the Default data set. We will
+now estimate the test error of this logistic regression model using the
+validation set approach. Do not forget to set a random seed before
+beginning your analysis.
+
+(a) Fit a logistic regression model that uses income and balance to
+predict default.
+
+```{r}
+data(Default)
+logit = glm(default ~ income + balance, data = Default, family= "binomial")
+logit
+```
+(b) Using the validation set approach, estimate the test error of this
+model. In order to do this, you must perform the following steps:
+- i. Split the sample set into a training set and a validation set.
+5.4 Exercises 199
+- ii. Fit a multiple logistic regression model using only the training
+observations.
+- iii. Obtain a prediction of default status for each individual in
+the validation set by computing the posterior probability of
+default for that individual, and classifying the individual to
+the default category if the posterior probability is greater
+than 0.5.
+- iv. Compute the validation set error, which is the fraction of
+the observations in the validation set that are misclassified
+```{r}
+index = rows<- sample(nrow(Default))
+CrossVD<- Default[rows,]
+split <- round(nrow(Default) * .5)
+train <- Default[1:split, ]
+test <- Default[(split + 1):nrow(Default), ]
+
+```
+```{r}
+data(Default)
+logit2 = glm(default ~ income + balance, data = train, family= "binomial")
+prediction = predict(logit2, test, type = "response")
+GlmPreds2 = rep("No", length(test$default))
+GlmPreds2[prediction > .5] = "Yes"
+table(GlmPreds2, test$default)
+1 - (mean(GlmPreds2 == test$default))
+```
+
+```{r}
+index = rows<- sample(nrow(Default))
+CrossVD<- Default[rows,]
+split <- round(nrow(Default) * .7)
+train <- Default[1:split, ]
+test <- Default[(split + 1):nrow(Default), ]
+
+```
+```{r}
+data(Default)
+logit2 = glm(default ~ income + balance, data = train, family= "binomial")
+prediction = predict(logit2, test, type = "response")
+GlmPreds2 = rep("No", length(test$default))
+GlmPreds2[prediction > .5] = "Yes"
+table(GlmPreds2, test$default)
+1- (mean(GlmPreds2 == test$default))
+```
+```{r}
+index = rows<- sample(nrow(Default))
+CrossVD<- Default[rows,]
+split <- round(nrow(Default) * .8)
+train <- Default[1:split, ]
+test <- Default[(split + 1):nrow(Default), ]
+
+```
+```{r}
+data(Default)
+logit2 = glm(default ~ income + balance, data = train, family= "binomial")
+prediction = predict(logit2, test, type = "response")
+GlmPreds2 = rep("No", length(test$default))
+GlmPreds2[prediction > .5] = "Yes"
+table(GlmPreds2, test$default)
+1 - (mean(GlmPreds2 == test$default))
+```
+
+```{r}
+index = rows<- sample(nrow(Default))
+CrossVD<- Default[rows,]
+split <- round(nrow(Default) * .9)
+train <- Default[1:split, ]
+test <- Default[(split + 1):nrow(Default), ]
+
+```
+```{r}
+data(Default)
+logit2 = glm(default ~ income + balance, data = train, family= "binomial")
+prediction = predict(logit2, test, type = "response")
+GlmPreds2 = rep("No", length(test$default))
+GlmPreds2[prediction > .5] = "Yes"
+table(GlmPreds2, test$default)
+1 - (mean(GlmPreds2 == test$default))
+```
+
+It seems that the accuracy is not heavily effected by what split is used to train or test the regression model.
+
+(d) Now consider a logistic regression model that predicts the probability
+of default using income, balance, and a dummy variable
+for student. Estimate the test error for this model using the validation
+set approach. Comment on whether or not including a
+dummy variable for student leads to a reduction in the test error
+rate.
+
+
+```{r}
+index = rows<- sample(nrow(Default))
+CrossVD<- Default[rows,]
+split <- round(nrow(Default) * .5)
+train <- Default[1:split, ]
+test <- Default[(split + 1):nrow(Default), ]
+
+```
+```{r}
+data(Default)
+logit2 = glm(default ~ income + balance + student, data = train, family= "binomial")
+prediction = predict(logit2, test, type = "response")
+GlmPreds2 = rep("No", length(test$default))
+GlmPreds2[prediction > .5] = "Yes"
+table(GlmPreds2, test$default)
+1 - (mean(GlmPreds2 == test$default))
+```
+
+The inclusion of the Student Term does not lead to a reduction in error.
+====================================================================================
+## Assigment 6 Chapter 5-2: 6 +
+
+6) We continue to consider the use of a logistic regression model to
+predict the probability of default using income and balance on the
+Default data set. In particular, we will now compute estimates for
+the standard errors of the income and balance logistic regression coefficients
+in two different ways: 
+(1) using the bootstrap, 
+and (2) using
+the standard formula for computing the standard errors in the glm()
+function. Do not forget to set a random seed before beginning your
+analysis.
+
+(a) Using the summary() and glm() functions, determine the estimated
+standard errors for the coefficients associated with income
+and balance in a multiple logistic regression model that uses
+both predictors.
+```{r}
+data("Default")
+library(boot)
+set.seed(1)
+logit3 = glm(default~ income + balance, data = Default, family = "binomial")
+```
+```{r}
+summary(logit3)
+```
+(b) Write a function, boot.fn(), that takes as input the Default data
+set as well as an index of the observations, and that outputs
+the coefficient estimates for income and balance in the multiple
+logistic regression model.
+```{r}
+boot.fn=function (df ,index){
+fit=glm(default ~ income + balance ,data= df, subset= index, family = "binomial")
+return(fit$coefficient)
+}
+```
+(c) Use the boot() function together with your boot.fn() function to
+estimate the standard errors of the logistic regression coefficients
+for income and balance.
+(d) Comment on the estimated standard errors obtained using the
+glm() function and using your bootstrap function.
+```{r}
+set.seed(1)
+boot(Default, boot.fn, 100)
+summary(glm(default ~ income + balance, data = Default, family = "binomial"))
+```
+The starndard errors obtained are quite similar.  I'd imagine that the bootstrap ones are more accurate.
+(e) Determine the median income and its bootstrap standard error. [use set.seed(1)]
+```{r}
+set.seed(1)
+income = Default$income
+BootMedian <- function(df, index) {
+  return(median(df[index,2]))
+}
+
+bo = boot(Default, boot.fn, 100)
+bo 
+```
+ (f) Determine a 90% bootstrap confidence interval for the median. [type help(boot.ci)]
+```{r}
+boot.ci(bo, 0.95, type = "basic")
+```
+we are 95% confident that the true median income is between -12.43 and -10.89
+
+====================================================================================
+## Assignment 7 Question 8+
+```{r}
+library(ISLR)
+library(tree)
+data(Carseats )
+High=ifelse(Carseats$Sales <=8,"No","Yes ")
+```
+
+
+(a) Split the data set into a training set and a test set.
+```{r}
+set.seed(2)
+train=sample (1: nrow(Carseats ), 200)
+Carseats.test=Carseats [-train ,]
+Carseats.train= Carseats[train,]
+
+```
+
+(b) Fit a regression tree to the training set. Plot the tree, and interpret
+the results. What test MSE do you obtain?
+```{r}
+tree.carseats =tree(Sales~. , Carseats ,subset=train)
+tree.pred=predict(tree.carseats ,Carseats.test)
+mean(tree.pred - Carseats.test$Sales)^2
+```
+```{r}
+plot(tree.carseats)
+text(tree.carseats ,pretty =0)
+```
+The test error is rather low but I am unable to see the tree well no matter how I resize.
+(c) Use cross-validation in order to determine the optimal level of
+tree complexity. Does pruning the tree improve the test MSE?
+```{r}
+cv.carseats=cv.tree(tree.carseats)
+plot(cv.carseats$size ,cv.carseats$dev ,type="b")
+```
+```{r}
+prune.carseats=prune.tree(tree.carseats, best=5)
+tree.pred=predict(prune.carseats ,Carseats.test)
+mean(tree.pred - Carseats.test$Sales)^2
+```
+pruning does improve the test mse, quite a bit!
+
+d) Use the bagging approach in order to analyze this data. What
+test MSE do you obtain? Use the importance() function to determine
+which variables are most important.
+```{r}
+library(randomForest)
+set.seed(1)
+bag.carsearts = randomForest(Sales~.,data=Carseats , subset=train ,
+mtry=sqrt(length(Carseats)),importance =TRUE, ntree = 15)
+tree.pred=predict(bag.carsearts,Carseats.test)
+mean(tree.pred - Carseats.test$Sales)^2
+```
+This is a smaller test error than the decision tree looks like it is doing a good job!
+```{r}
+importance(bag.carsearts)
+varImpPlot(bag.carsearts)
+```
+There seems to be disagreement between the two splitting rules.  I'm inclined to trust the %incMSE because we are thinking about how far the prediction is off on average.
+
+(e) Use random forests to analyze this data. What test MSE do you
+obtain? Use the importance() function to determine which variables
+are most important. Describe the effect of m, the number of
+variables considered at each split, on the error rate
+obtained.
+
+```{r}
+rf.carsearts1 = randomForest(Sales~.,data=Carseats , subset=train ,
+mtry=sqrt(length(Carseats)),importance =TRUE)
+tree.pred=predict(rf.carsearts1,Carseats.test)
+mean(tree.pred - Carseats.test$Sales)^2
+```
+```{r}
+rf.carsearts = randomForest(Sales~.,data=Carseats , subset=train ,
+mtry=sqrt(length(Carseats)) + 1,importance =TRUE, ntree = 15)
+tree.pred=predict(rf.carsearts,Carseats.test)
+mean(tree.pred - Carseats.test$Sales)^2
+```
+```{r}
+
+rf.carsearts = randomForest(Sales~.,data=Carseats , subset=train ,
+mtry=sqrt(length(Carseats))+ 2,importance =TRUE)
+tree.pred=predict(rf.carsearts,Carseats.test)
+mean(tree.pred - Carseats.test$Sales)^2
+```
+Changing the value of mtry changes the test error but only by a small amount.
+
+```{r}
+importance(rf.carsearts1)
+varImpPlot(rf.carsearts1)
+```
+The random forest has the same disagreement among split rules.  Most important variables are consistent, but the random forest weighs the first two as being more important in the prediction.
+
+NOTE: use set.seed(1) before each gbm() call
+NOTE: if gbm fails to load, try resizing the console window (larger)
+(f) Use boosting on the training set with a depth of 3 splits and the default shrinkage to find the test MSE.
+```{r}
+library(gbm)
+set.seed(1)
+boost.carseats=gbm(Sales~. ,data=Carseats.train, distribution=
+"gaussian",n.trees=5000, interaction.depth=3)
+```
+```{r}
+tree.pred=predict(boost.carseats,Carseats.test, n.trees = 5000)
+mean(tree.pred - Carseats.test$Sales)^2
+```
+Thats the lowest error yet!
+(g) Repeat part (f) with a shrinkage of .01 and .02, reporting the test MSE in each case.
+```{r}
+set.seed(1)
+boost.carseats=gbm(Sales~. ,data=Carseats.train, distribution=
+"gaussian",n.trees=5000, interaction.depth=3, shrinkage = 0.1)
+```
+```{r}
+tree.pred=predict(boost.carseats,Carseats.test, n.trees = 5000)
+mean(tree.pred - Carseats.test$Sales)^2
+```
+This error is even lower than the last boosted tree.  I wonder what varying the shrinkage wil do.
+
+```{r}
+set.seed(1)
+boost.carseats=gbm(Sales~. ,data=Carseats.train, distribution=
+"gaussian",n.trees=5000, interaction.depth=3, shrinkage = 0.2)
+```
+
+```{r}
+tree.pred=predict(boost.carseats,Carseats.test, n.trees = 5000)
+mean(tree.pred - Carseats.test$Sales)^2
+```
+Making the shrinkage parameter  larger leads to a smaller test error
+
+(h) Repeat part (g) using "stumps" and compare the test MSE to parts (f) & (g)
+I was unable to figure out what you meant by stumps.  I don't see anything in the gbm help file or in the book. I will try another shrinkage parameter instead.
+```{r}
+set.seed(1)
+boost.carseats=gbm(Sales~. ,data=Carseats.train, distribution=
+"gaussian",n.trees=5000, interaction.depth=3, shrinkage = 0.4)
+```
+
+```{r}
+tree.pred=predict(boost.carseats,Carseats.test, n.trees = 5000)
+mean(tree.pred - Carseats.test$Sales)^2
+```
+This is a higher error than observered with several other models.  It seems that setting the srinkage to high can lead to decrease in predictive accuracy.
+
+===========================================================================================================================
+## Assignment 8: Chapter 6: 11 like problem
+
+
+11. We will now try to predict per capita crime rate in the Boston data
+set
+
+```{r}
+library(ISLR)
+library(MASS)
+library(caret)
+data(Boston)
+```
+
+a) Split the Boston data set into a training and test set (50-50 split)
+```{r}
+x=model.matrix(crim~.,Boston )[,-1]
+y=Boston$crim
+set.seed(1)
+split <- round(nrow(Boston) * .50)
+train <- Boston[1:split, ]
+test <- Boston[(split + 1):nrow(Boston), ]
+```
+b) Complete training and test error for OLS regression.  
+training error
+```{r}
+OLS = lm(crim~., data = train)
+predictionstrain = predict(OLS, train)
+mean((predictionstrain - train$crim)^2)
+range(train$crim)
+```
+this is a moderatley small error given the range of values
+Test Error 
+```{r}
+OLS = lm(crim~., data = train)
+predictions = predict(OLS, test)
+mean((predictions - test$crim)^2)
+```
+c. for Ridge regression, use cross-validation to determine lambda
+   and compute training & test error for Ridge regression
+
+```{r}
+x=model.matrix(crim~.,train)[,-1]
+x2=model.matrix(crim~.,test)[,-1]
+y=train$crim
+library(glmnet)
+grid=10^seq(10,-2, length =100)
+ridge.mod= glmnet(x,y, alpha=0, lambda=grid)
+```
+Cross valadation error.
+```{r}
+set.seed(1)
+cv.out=cv.glmnet(x,y,alpha=0)
+plot(cv.out)
+bestlam =cv.out$lambda.min
+bestlam
+```
+the best lambda is 0.06193104
+
+test error 
+```{r}
+ridge.pred=predict(ridge.mod, s=4, newx=x2)
+mean((ridge.pred - test$crim)^2)
+```
+The test error is faily large. I'm not 100% sure if these test errors are correct but I've checked my code and cannot find any errors.
+## for Lasso regression use cross valadation to determine lambda 
+```{r}
+set.seed(1)
+x=model.matrix(crim~.,train)[,-1]
+x2=model.matrix(crim~.,test)[,-1]
+y=train$crim
+library(glmnet)
+grid=10^seq(10,-2, length =100)
+Lasso.mod= glmnet(x,y, alpha=1, lambda=grid)
+```
+```{r}
+set.seed(1)
+cv.out=cv.glmnet(x,y,alpha=1)
+plot(cv.out)
+bestlam1= cv.out$lambda.min
+bestlam1
+cv.out$lambda.min
+```
+```{r}
+lasso.pred=predict(Lasso.mod, s=4, newx=x2)
+mean(mean((lasso.pred-test$crim)^2))
+
+```
+e.  Suummarize the differences in b,c & d
+Of the three the OLS regression has the lowest test error. This is suprising because lasso and ridge regression typically have a smaller test error.
+
+f. Compute the l2 norm for all models
+```{r, error = TRUE}
+sqrt(sum(coef(OLS)[2:length(coef(OLS))]))
+```
+```{r}
+sqrt(sum(coef(ridge.mod)^2) )
+```
+```{r}
+sqrt(sum(coef(Lasso.mod)^2) )
+```
+g. compute forward selection models for predicting crime. Create a vector [ rep(NA, 13) ] to store the MSE from each of the 13 forward models. Loop through each of these models and compute & store the MSE. Determine the model size with minimum MSE and report the MSE.
+
+
+```{r}
+library(leaps)
+forward = regsubsets(crim~., data = train, nvmax=13, method = "forward")
+means = rep(NA, 13)
+for (i in 1:13){
+  coef.i = coef(forward, id = i) 
+  test.mat.i = model.matrix(crim~., data = test)
+  predict.i= test.mat.i[,names(coef.i)] %*% coef.i
+  means[i] = mean((predict.i - test$crim)^2)
+}
+numberofPredictors = rep(1:13)
+toplot=as.data.frame(cbind(means, numberofPredictors))
+minn=min(toplot$means)
+plot(means~numberofPredictors, data = toplot)+
+points(toplot[minn,], col = "red")
+```
+```{r}
+minn
+```
+Minimum mse is 151.6604 when 8 predictors are used.  I can't get the points to be colored or the life of me. I'm not the best with base plotting
+```{r}
+library(leaps)
+backward = regsubsets(crim~., data = train, nvmax=13, method = "backward")
+means = rep(NA, 13)
+for (i in 1:13){
+  coef.i = coef(forward, id = i) 
+  test.mat.i = model.matrix(crim~., data = test)
+  predict.i= test.mat.i[,names(coef.i)] %*% coef.i
+  means[i] = mean((predict.i - test$crim)^2)
+}
+numberofPredictors = rep(1:13)
+toplot=as.data.frame(cbind(means, numberofPredictors))
+minn=min(toplot$means)
+plot(means~numberofPredictors, data = toplot)+
+points(toplot[minn,], col = "red")
+
+```
+```{r}
+minn
+```
+The minimum mse is 151.3058 with 6 predictors included.  Again I'm not sure these errors are 100% right but I see no problems in my code.
+
