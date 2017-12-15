@@ -1,0 +1,243 @@
+---
+title: "Modeling Gender Interests"
+output: html_notebook
+---
+
+
+```{r}
+library(car)
+library(GGally)
+library(lime)
+library(caret)
+library(readr)
+library(rpart)
+library(d3heatmap)
+library(RColorBrewer)
+library(dplyr)
+library(ggplot2)
+library(GGally)
+library(corrplot)
+library(randomForest)
+library(data.table)
+library(highcharter)
+library(tidyr)
+library(factoextra)
+setwd("~/Documents/Rscripts /Stat 295/Final")
+youngPeople=read.csv("responses.csv", stringsAsFactors = F)
+variables = names(youngPeople)
+names(youngPeople)[2] = "song speed"
+names(youngPeople)[10] = "Metal/HardRock"
+#youngPeople$Gender = as.factor(youngPeople$Gender)
+youngPeople$Alcohol[youngPeople$Alcohol == "never"] = 1
+youngPeople$Alcohol[youngPeople$Alcohol == "social drinker"] = 2
+youngPeople$Alcohol[youngPeople$Alcohol == "drink a lot"] = 3
+youngPeople$Alcohol = as.numeric(youngPeople$Alcohol)
+youngPeople$Smoking[youngPeople$Smoking == "never smoked"] = 1
+youngPeople$Smoking[youngPeople$Smoking == "tried smoking"] = 2
+youngPeople$Smoking[youngPeople$Smoking == "former smoker"] = 3
+youngPeople$Smoking[youngPeople$Smoking == "current smoker"] = 4
+youngPeople$Smoking = as.numeric(youngPeople$Smoking)
+youngPeople$Internet.usage[youngPeople$Internet.usage == "no time at all"] = 1
+youngPeople$Internet.usage[youngPeople$Internet.usage == "less than an hour a day"] = 2
+youngPeople$Internet.usage[youngPeople$Internet.usage == "few hours a day"] = 3
+youngPeople$Internet.usage[youngPeople$Internet.usage == "most of the day"] = 4
+youngPeople$Internet.usage = as.integer(youngPeople$Internet.usage)
+youngPeople$Punctuality[youngPeople$Punctuality == "i am often early"] = 3
+youngPeople$Punctuality[youngPeople$Punctuality == "i am always on time"] = 2
+youngPeople$Punctuality[youngPeople$Punctuality == "i am often running late"] = 1
+youngPeople$Punctuality[youngPeople$Punctuality == ""] = NA
+youngPeople$Punctuality = as.numeric(youngPeople$Punctuality)
+youngPeople$Lying[youngPeople$Lying == "never"] = 1
+youngPeople$Lying[youngPeople$Lying == "only to avoid hurting someone"] = 2
+youngPeople$Lying[youngPeople$Lying == "sometimes"] = 3
+youngPeople$Lying[youngPeople$Lying == "everytime it suits me"] = 4
+youngPeople$Lying[youngPeople$Lying == ""] = NA
+youngPeople$Lying = as.numeric(youngPeople$Lying)
+library("FactoMineR")
+```
+# Big take aways
+1) There is a logistic Regression model that summarizes the relationship between the variables quite well. It holds up to cross validation. (lets write it out in LaTeX)
+2) The BIC identifies strong models using almost all variables
+3) We should look a bit deeper into this relationship and consider some results from more complex models.
+4) lets look further with regularization and tree based methods.
+
+# Next steps
+1) We should probably just focus on turning this into the paper, I think it will be quite easy to go from paper to presentation.
+
+2) I do not yet have a baisc tree model in here, It would also be good to fit the GLM model with the glmnet as shown in the lab.  This gives us a bit more information about the coefficents and the graph in the lab does a great job of visualizing the uncertainty around them.
+
+3)Caret's variable importance is genius. We should write up the absolute value t statistic in latex also.
+
+4) Visuals in general are kinda needed at this point for the presentation. But lets focus on the paper first.
+https://www.kdnuggets.com/images/cartoon-recommendation-python-machine-learning.jpg
+```{r}
+split = round(nrow(youngPeople) * .80)
+train = youngPeople[1:split, ]
+test = youngPeople[(split + 1):nrow(youngPeople), ]
+interests = train %>% select(Gender,History:Pets) %>% filter(Gender != "") %>% drop_na() %>% mutate(Gender = as.factor(Gender))
+interestsTest = train %>% select(Gender,History:Pets) %>% filter(Gender != "") %>% drop_na() %>% mutate(Gender = as.factor(Gender))
+```
+### lets start here by graphing that PCA again just as a point of reference
+```{r, fig.height=10, fig.width=10}
+h=PCA(interests[,2:ncol(interests)], scale = T, graph = F) 
+fviz_pca_biplot(h,geom = "point",
+                repel = TRUE,
+                col.var = "#2E9FDF", # Variables color
+                habillage = interests$Gender,
+                col.ind = "#696567" # Individuals color
+                )
+  
+```
+## Lets try some best subset regression to see what this tells us. I like the regsubsets default better than ISLR's suggestion of using all variables  
+```{r}
+library(leaps)
+regfit <- regsubsets(Gender ~ ., interests, method = "forward")
+```
+```{r, fig.height=10, fig.width= 10}
+par(mfrow=c(2,2))
+plot(regfit, scale = 'r2')
+plot(regfit, scale = 'adjr2')
+plot(regfit, scale = 'Cp')
+plot(regfit, scale = 'bic')
+```
+## Here's what it we get following the books recomendation of using all variables. There's something interesting happening with the BIC
+```{r}
+library(leaps)
+regfit2 <- regsubsets(Gender ~ ., interests, method = "forward", nvmax = 33)
+```
+```{r, fig.height=11, fig.width=10}
+par(mfrow=c(2,2))
+plot(regfit2, scale = 'r2')
+plot(regfit2, scale = 'adjr2')
+plot(regfit2, scale = 'Cp')
+plot(regfit2, scale = 'bic')
+```
+
+
+
+## create folds to prevent leakage
+```{r}
+myFolds <- createFolds(interests$Gender, k = 10)
+set.seed(2017)
+```
+## Created train control, makes sure that our folds are constant across all models.  Prevents leakage!
+```{r}
+myControl <- trainControl(
+  method = "cv",
+  number = 10,
+  summaryFunction = twoClassSummary,
+  classProbs = TRUE, # IMPORTANT!
+  index = myFolds
+  
+)
+pred = function(model){
+preds = predict(model, interestsTest)
+confusionMatrix(interestsTest$Gender, preds)}
+
+```
+## The PCA was able to help us find an interesting dimension in the data now lets dig a little deeper.
+## We'll chose this subset of variables based on our PCA and best subset results.
+
+# This really should be our final model.  It would be nice if we could write this up in latex, I don't know how to do that.
+https://stats.stackexchange.com/questions/316641/what-is-the-usefulness-of-detection-rate-in-a-confusion-matrix
+```{r}
+logreg<- train(Gender ~ PC + Reading + Cars + Shopping, interests, method = 'glm',
+              trControl = myControl)
+logreg
+pred(logreg)
+summary(logreg)
+ggcoef(logreg$finalModel,  errorbar_color = "blue",
+  errorbar_height = .25, exclude_intercept = T) + ggtitle("Initial Logistic Regression Model")
+vif(logreg$finalModel)
+```
+## quick note on metrics https://stats.stackexchange.com/questions/124001/what-is-the-intuition-behind-the-kappa-statistical-value-in-classification
+
+
+```{r}
+Tree <- train(
+  Gender ~ .,
+  tuneLength = 10,
+  importance = "impurity",
+  data = interests, method = "ranger",
+  trControl = myControl)
+pred(Tree)
+Tree
+```
+# as far as tree based methods go it seems that extra trees is doing really well. 
+https://www.quora.com/What-is-the-extra-trees-algorithm-in-machine-learning
+```{r}
+treeinfo = as.data.frame(Tree$results)
+ggplot(treeinfo, aes(mtry, ROC, color = splitrule))+
+         geom_point()+
+        ggtitle("Tree Rules")
+```
+```{r, warning = FALSE}
+IMP= function(model){
+importance = as.data.frame(varImp(model)$importance) %>% add_rownames("Question") 
+#%>% mutate(Question = as.factor(Question))
+importance = arrange(importance, desc(Overall)) %>% mutate(Question = as.factor(Question))
+order = importance$Question
+importance$Question = factor(importance$Question, levels = order)
+return(importance)
+}
+
+```
+```{r}
+TreeImportant= IMP(Tree)
+```
+
+```{r}
+implot= function(importance){
+ggplot(importance, aes(Question, Overall))+
+  geom_bar(stat = "identity")+
+  coord_flip()}
+a=TreeImportant %>% implot + ggtitle("Random Forest")
+a
+```
+```{r}
+logreg2 = train(Gender ~ Cars + PC + Shopping + Reading + Dancing, interests, method = 'glm',
+              trControl = myControl)
+pred(logreg2)
+```
+Notes of Caret Variable Importance: http://ftp.uni-bayreuth.de/math/statlib/R/CRAN/doc/vignettes/caret/caretVarImp.pdf
+
+Here’s more info on the extra trees algorithm https://www.quora.com/What-is-the-extra-trees-algorithm-in-machine-learning
+## What This is doing is crazy, this is really one of the best estimate of out of sample error possible with the data.
+```{r}
+library(lars)
+set.seed(825) # for reproducing these results
+
+ridge <- train(Gender ~., data = interests,
+               method='glmnet', 
+               preProcess=c('scale', 'center'),
+               trControl = myControl,
+               tuneGrid = expand.grid(alpha = seq(.05, 1, length = 15),
+                                               lambda = c((1:5)/10)))
+ridge$resampledCM
+ridge$resample
+ridge
+
+ridgeImportance = IMP(ridge)
+b=ridgeImportance %>% implot()+ ggtitle("Lasso Regression")
+pred(ridge)
+ridge
+varImp(ridge, scale = F)
+f= youngPeople %>% select(PC, Cars)
+```
+
+```{r}
+pred(ridge)
+```
+## This is a really cool idea, these are scaled absolute value t-statistics. Were able to get some sort of way to compare what the two models are saying.
+```{r}
+fullmodel = train(Gender ~., data= interests, method = 'glm',
+              trControl = myControl)
+c=IMP(fullmodel) %>% implot() + ggtitle("Logistic Regression")
+pred(fullmodel)
+varImp(logreg, scale =FALSE )
+```
+```{r, fig.height= 12, fig.width=14}
+library(gridExtra)
+grid.arrange(a,b,c) 
+```
+
