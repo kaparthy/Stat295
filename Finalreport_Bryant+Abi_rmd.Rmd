@@ -3,8 +3,22 @@ title: "Modeling Gender Interests"
 output: html_notebook
 ---
 
+# Introduction 
+We chose to investigate a “Young People Survey” data set. This data set has 150 variables representing answers to survey questions that were answered in both paper and electronic form. This survey was given to young Slovakian people between the ages of 15-30. The Survey asked them to give ratings to questions about different subjects pertinent to young people. The variables can be split into some distinct subsets as defined on Kaggle:
 
-```{r}
+* Music preferences (19 items)
+* Movie preferences (12 items)
+* Hobbies & interests (32 items)
+* Phobias (10 items)
+* Health habits (3 items)
+* Personality traits, views on life, & opinions (57 items)
+* Spending habits (7 items)
+* Demographics (10 items)
+
+Answers to questions, for the most part, were recorded on a  5 point likert scale.  In this analysis we aimed to pinpoint a few variables that contribute most, to predicting the gender variable, using the Hobbies & interests subset. In all models presented in this paper, we predict the female gender in the dataset. Models were fitted and evaluated with the caret package.  Throughout our modeling process we estimated test error with 10 fold cross validation and then evaluated test error on a held out test set containing 20% of the data. We predefined fold indexes to avoid leakage, this was the main reason we used caret. 
+
+
+```{r, echo=FALSE}
 library(car)
 library(GGally)
 library(lime)
@@ -55,30 +69,35 @@ youngPeople$Lying[youngPeople$Lying == ""] = NA
 youngPeople$Lying = as.numeric(youngPeople$Lying)
 library("FactoMineR")
 ```
-# Big take aways
-1) There is a logistic Regression model that summarizes the relationship between the variables quite well. It holds up to cross validation. (lets write it out in LaTeX)
-2) The BIC identifies strong models using almost all variables
-3) We should look a bit deeper into this relationship and consider some results from more complex models.
-4) lets look further with regularization and tree based methods.
 
-# Next steps
-1) We should probably just focus on turning this into the paper, I think it will be quite easy to go from paper to presentation.
+# Modeling set up and EDA 
 
-2) I do not yet have a baisc tree model in here, It would also be good to fit the GLM model with the glmnet as shown in the lab.  This gives us a bit more information about the coefficents and the graph in the lab does a great job of visualizing the uncertainty around them.
-
-3)Caret's variable importance is genius. We should write up the absolute value t statistic in latex also.
-
-4) Visuals in general are kinda needed at this point for the presentation. But lets focus on the paper first.
-https://www.kdnuggets.com/images/cartoon-recommendation-python-machine-learning.jpg
+This piece here is very important.  
+* I first divide my data into a training and test set.  We want to be able to evalutate the true  test error rate of the model.  We are not able to do this if we evaluate the model performance on data that was used to train it.
+* The data will be split into a 80% training set and a 20% testing set.
+* In order for our cross-valadation results to be valid, we need to make sure that we everalutate models on the same folds.
 ```{r}
 split = round(nrow(youngPeople) * .80)
 train = youngPeople[1:split, ]
 test = youngPeople[(split + 1):nrow(youngPeople), ]
 interests = train %>% select(Gender,History:Pets) %>% filter(Gender != "") %>% drop_na() %>% mutate(Gender = as.factor(Gender))
-interestsTest = train %>% select(Gender,History:Pets) %>% filter(Gender != "") %>% drop_na() %>% mutate(Gender = as.factor(Gender))
+interestsTest = test %>% select(Gender,History:Pets) %>% filter(Gender != "") %>% drop_na() %>% mutate(Gender = as.factor(Gender))
 ```
-### lets start here by graphing that PCA again just as a point of reference
-```{r, fig.height=10, fig.width=10}
+## Variable selection:
+
+In order to select variables for our models, we used two different methods, best subset regression and principal component analysis.
+
+#### PCA:
+
+Principal component analysis is a technique used for dimensionality redecution. I really like this definition from Abbas Keshvani: https://coolstatsblog.com/author/mabbask/
+
+* "Principal Component Analysis, or PCA, is a statistical method used to reduce the number of variables in a dataset. It does so by lumping highly correlated variables together. Naturally, this comes at the expense of accuracy. However, if you have 50 variables and realize that 40 of them are highly correlated, you will gladly trade a little accuracy for simplicity."
+
+Principal component analysis was how we eventaully decided on the interestes subset of this dataset.  We modeled the principal component analysis in many different subsets and found this one most interesting.  
+
+In the following figure, factor loadings are colored by the Gender of the observation.  Principal component analysis is an unsupervised learning technqiue, which means that it does NOT use these Gender labels when reducing dimensions. 
+
+```{r, fig.height=7, fig.width=7, echo=FALSE}
 h=PCA(interests[,2:ncol(interests)], scale = T, graph = F) 
 fviz_pca_biplot(h,geom = "point",
                 repel = TRUE,
@@ -88,24 +107,27 @@ fviz_pca_biplot(h,geom = "point",
                 )
   
 ```
-## Lets try some best subset regression to see what this tells us. I like the regsubsets default better than ISLR's suggestion of using all variables  
+#### Best Subset Regression 
+In this course we studied the great book *Introduction to Statistical Learning with Applications in R* by Gareth et al.  The book spends a good chunk on this method of variable selection.  Personally, it is not my favorite method.  We have come up with cross valaidation, regularization and many other ways to better handle this problem. We will use this in exploratory models to develop an inital hypothesis. While exploring we tried both forward and backward selection. Results were similar, so we decided to simply use forward selection.
+
+This first figure will not include the nvmax argument to regsubsets(). This argument selects the maximum subsets to examine.  The deault for this argument 8.
 ```{r}
 library(leaps)
 regfit <- regsubsets(Gender ~ ., interests, method = "forward")
 ```
-```{r, fig.height=10, fig.width= 10}
+```{r, fig.height=10, fig.width= 10, echo=FALSE}
 par(mfrow=c(2,2))
 plot(regfit, scale = 'r2')
 plot(regfit, scale = 'adjr2')
 plot(regfit, scale = 'Cp')
 plot(regfit, scale = 'bic')
 ```
-## Here's what it we get following the books recomendation of using all variables. There's something interesting happening with the BIC
+I next use the settings reccomended by ISLR, setting nvmax equal to the number of variables.
 ```{r}
 library(leaps)
 regfit2 <- regsubsets(Gender ~ ., interests, method = "forward", nvmax = 33)
 ```
-```{r, fig.height=11, fig.width=10}
+```{r, fig.height=11, fig.width=10, echo=FALSE}
 par(mfrow=c(2,2))
 plot(regfit2, scale = 'r2')
 plot(regfit2, scale = 'adjr2')
@@ -114,14 +136,14 @@ plot(regfit2, scale = 'bic')
 ```
 
 
+## Modeling
+for creating statistical models we decided to use the caret packaage.  It provides a variaty of tools to help us access both crossvalidation and test error.
 
-## create folds to prevent leakage
+I next createa a train control for all of the models.  This allows us to use the same folds and crossvalidation methods across models.
 ```{r}
 myFolds <- createFolds(interests$Gender, k = 10)
 set.seed(2017)
-```
-## Created train control, makes sure that our folds are constant across all models.  Prevents leakage!
-```{r}
+
 myControl <- trainControl(
   method = "cv",
   number = 10,
@@ -135,24 +157,46 @@ preds = predict(model, interestsTest)
 confusionMatrix(interestsTest$Gender, preds)}
 
 ```
-## The PCA was able to help us find an interesting dimension in the data now lets dig a little deeper.
-## We'll chose this subset of variables based on our PCA and best subset results.
+#### Initial model: Logistic Regression
+We fit an initial logistic regression with variables selected as important by both our stepwise selection and PCA.  This model performs alright, but their is a big issue with this model.
 
-# This really should be our final model.  It would be nice if we could write this up in latex, I don't know how to do that.
-https://stats.stackexchange.com/questions/316641/what-is-the-usefulness-of-detection-rate-in-a-confusion-matrix
 ```{r}
 logreg<- train(Gender ~ PC + Reading + Cars + Shopping, interests, method = 'glm',
               trControl = myControl)
-logreg
 pred(logreg)
-summary(logreg)
-ggcoef(logreg$finalModel,  errorbar_color = "blue",
-  errorbar_height = .25, exclude_intercept = T) + ggtitle("Initial Logistic Regression Model")
-vif(logreg$finalModel)
 ```
-## quick note on metrics https://stats.stackexchange.com/questions/124001/what-is-the-intuition-behind-the-kappa-statistical-value-in-classification
 
 
+```{r, warning=FALSE, echo=FALSE, fig.align='center'}
+logplot = ggcoef(logreg$finalModel,  errorbar_color = "blue",
+  errorbar_height = .25, exclude_intercept = T) + ggtitle("Initial Logistic Regression Model")
+```
+#### It looks like there is some issues with multicolinearity.  Remember we are predicting the female gender.
+
+```{r, warning=FALSE, echo=FALSE, fig.align='center'}
+library(gridExtra)
+a=youngPeople %>% filter(Gender != "") %>% ggplot(aes(Shopping, fill = Gender))+
+  geom_bar()
+b=youngPeople %>% filter(Gender != "") %>% ggplot(aes(Cars, fill = Gender))+
+  geom_bar()
+c=youngPeople %>% filter(Gender != "") %>% ggplot(aes(PC, fill = Gender))+
+  geom_bar()
+d=youngPeople %>% filter(Gender != "") %>% ggplot(aes(Reading, fill = Gender))+
+  geom_bar()
+grid.arrange(a,d,c,b)
+```
+
+
+```{r, echo=FALSE, fig.height=3, fig.width=6, fig.align="center"}
+logplot
+```
+some notes about some of the caret measures:
+https://stats.stackexchange.com/questions/124001/what-is-the-intuition-behind-the-kappa-statistical-value-in-classification
+https://stats.stackexchange.com/questions/316641/what-is-the-usefulness-of-detection-rate-in-a-confusion-matrix
+
+#### follow up models:
+
+#### Random Forest
 ```{r}
 Tree <- train(
   Gender ~ .,
@@ -205,31 +249,24 @@ Here’s more info on the extra trees algorithm https://www.quora.com/What-is-th
 ## What This is doing is crazy, this is really one of the best estimate of out of sample error possible with the data.
 ```{r}
 library(lars)
-set.seed(825) # for reproducing these results
-
 ridge <- train(Gender ~., data = interests,
                method='glmnet', 
                preProcess=c('scale', 'center'),
                trControl = myControl,
                tuneGrid = expand.grid(alpha = seq(.05, 1, length = 15),
                                                lambda = c((1:5)/10)))
-ridge$resampledCM
-ridge$resample
-ridge
 
 ridgeImportance = IMP(ridge)
 b=ridgeImportance %>% implot()+ ggtitle("Lasso Regression")
 pred(ridge)
-ridge
 varImp(ridge, scale = F)
-f= youngPeople %>% select(PC, Cars)
 ```
 
 ```{r}
 pred(ridge)
 ```
 ## This is a really cool idea, these are scaled absolute value t-statistics. Were able to get some sort of way to compare what the two models are saying.
-```{r}
+```{r, warning= FALSE}
 fullmodel = train(Gender ~., data= interests, method = 'glm',
               trControl = myControl)
 c=IMP(fullmodel) %>% implot() + ggtitle("Logistic Regression")
